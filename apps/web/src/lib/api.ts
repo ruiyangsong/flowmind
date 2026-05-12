@@ -1,47 +1,48 @@
 const BASE = ''
 
-function getToken() {
-  return localStorage.getItem('fm_token') ?? ''
-}
-
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('fm_token')
   const res = await fetch(BASE + path, {
-    method,
+    ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   })
   const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+  if (!res.ok) throw new Error(json.error ?? 'Request failed')
   return json
 }
 
 export const api = {
   // Auth
-  register: (email: string, password: string, name: string) =>
-    request<{ token: string; user: any }>('POST', '/auth/register', { email, password, name }),
-  login: (email: string, password: string) =>
-    request<{ token: string; user: any }>('POST', '/auth/login', { email, password }),
-  me: () => request<{ ok: boolean; data: any }>('GET', '/auth/me'),
+  register: (body: { email: string; password: string; name: string }) =>
+    req<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+  login: (body: { email: string; password: string }) =>
+    req<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  me: () => req<{ ok: boolean; data: any }>('/auth/me'),
 
   // Documents
-  listDocs: () => request<{ ok: boolean; data: any[] }>('GET', '/documents'),
-  createDoc: (title?: string, content?: string) =>
-    request<{ ok: boolean; data: any }>('POST', '/documents', { title, content }),
-  getDoc: (id: string) => request<{ ok: boolean; data: any }>('GET', `/documents/${id}`),
-  updateDoc: (id: string, patch: { title?: string; content?: string; isPublic?: boolean }) =>
-    request<{ ok: boolean; data: any }>('PATCH', `/documents/${id}`, patch),
-  deleteDoc: (id: string) => request<{ ok: boolean }>('DELETE', `/documents/${id}`),
+  listDocuments: () => req<{ ok: boolean; data: any[] }>('/documents'),
+  createDocument: (body: { title?: string; content?: string }) =>
+    req<{ ok: boolean; data: any }>('/documents', { method: 'POST', body: JSON.stringify(body) }),
+  getDocument: (id: string) => req<{ ok: boolean; data: any }>(`/documents/${id}`),
+  updateDocument: (id: string, body: { title?: string; content?: string; isPublic?: boolean }) =>
+    req<{ ok: boolean; data: any }>(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteDocument: (id: string) =>
+    req<{ ok: boolean }>(`/documents/${id}`, { method: 'DELETE' }),
 
   // Share
-  createShare: (docId: string, mode: 'readonly' | 'collab', expiresIn = '30d') =>
-    request<{ ok: boolean; data: { token: string; mode: string; shareUrl: string; expiresAt: string | null } }>(
-      'POST', `/share/${docId}`, { mode, expiresIn }
+  createShareToken: (docId: string, body: { mode: 'readonly' | 'collab'; expiresIn?: string }) =>
+    req<{ ok: boolean; data: { token: string; mode: string; shareUrl: string; expiresAt: string | null } }>(
+      `/share/${docId}`, { method: 'POST', body: JSON.stringify(body) }
     ),
-  listShares: (docId: string) => request<{ ok: boolean; data: any[] }>('GET', `/share/${docId}`),
-  resolveShare: (token: string) =>
-    request<{ ok: boolean; data: any }>('GET', `/share/resolve/${token}`),
-  revokeShare: (token: string) => request<{ ok: boolean }>('DELETE', `/share/token/${token}`),
+  listShareTokens: (docId: string) => req<{ ok: boolean; data: any[] }>(`/share/${docId}`),
+  resolveShareToken: (token: string) =>
+    req<{ ok: boolean; data: { documentId: string; title: string; content: string; mode: string; expiresAt: string | null } }>(
+      `/share/resolve/${token}`
+    ),
+  revokeShareToken: (token: string) =>
+    req<{ ok: boolean }>(`/share/token/${token}`, { method: 'DELETE' }),
 }
