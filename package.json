@@ -1,0 +1,16 @@
+{
+  "name": "flowmind",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @flowmind/server dev\" \"pnpm --filter @flowmind/web dev\"",
+    "build": "pnpm --filter @flowmind/server build && pnpm --filter @flowmind/web build",
+    "start": "pnpm --filter @flowmind/server start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}
