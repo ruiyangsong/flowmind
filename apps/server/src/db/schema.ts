@@ -1,6 +1,5 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 
-// ─── Users ───────────────────────────────────────────────────────────────────
 export const users = sqliteTable('users', {
   id:        text('id').primaryKey(),
   email:     text('email').notNull().unique(),
@@ -10,7 +9,6 @@ export const users = sqliteTable('users', {
   createdAt: text('created_at').notNull(),
 })
 
-// ─── Documents ───────────────────────────────────────────────────────────────
 export const documents = sqliteTable('documents', {
   id:        text('id').primaryKey(),
   title:     text('title').notNull().default('Untitled'),
@@ -21,7 +19,6 @@ export const documents = sqliteTable('documents', {
   updatedAt: text('updated_at').notNull(),
 })
 
-// ─── Share Tokens ─────────────────────────────────────────────────────────────
 export const shareTokens = sqliteTable('share_tokens', {
   token:      text('token').primaryKey(),
   documentId: text('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),

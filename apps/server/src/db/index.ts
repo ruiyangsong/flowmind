@@ -5,7 +5,6 @@ import { dirname } from 'node:path'
 import * as schema from './schema.js'
 
 const dbPath = process.env.DB_PATH ?? './data/flowmind.db'
-
 mkdirSync(dirname(dbPath), { recursive: true })
 
 const sqlite = new Database(dbPath)
@@ -15,7 +14,6 @@ sqlite.pragma('synchronous = NORMAL')
 
 export const db = drizzle(sqlite, { schema })
 
-// Inline bootstrap migration — idempotent, runs on every boot
 export function runMigrations() {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -26,7 +24,6 @@ export function runMigrations() {
       avatar_url TEXT,
       created_at TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS documents (
       id         TEXT PRIMARY KEY,
       title      TEXT NOT NULL DEFAULT 'Untitled',
@@ -36,9 +33,7 @@ export function runMigrations() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-
     CREATE INDEX IF NOT EXISTS idx_documents_owner ON documents(owner_id);
-
     CREATE TABLE IF NOT EXISTS share_tokens (
       token       TEXT PRIMARY KEY,
       document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -47,7 +42,6 @@ export function runMigrations() {
       expires_at  TEXT,
       created_at  TEXT NOT NULL
     );
-
     CREATE INDEX IF NOT EXISTS idx_share_tokens_doc ON share_tokens(document_id);
   `)
 }
