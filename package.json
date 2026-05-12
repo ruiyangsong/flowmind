@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"pnpm --filter @flowmind/server dev\" \"pnpm --filter @flowmind/web dev\"",
-    "build": "pnpm --filter @flowmind/server build && pnpm --filter @flowmind/web build",
+    "dev": "concurrently \"pnpm --filter @flowmind/server dev\"",
+    "build": "pnpm --filter @flowmind/server build",
     "start": "pnpm --filter @flowmind/server start",
-    "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
