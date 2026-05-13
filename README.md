@@ -1,125 +1,137 @@
-# 🧠 FlowMind
+# FlowMind
 
-> All-in-one document editor with **Mind Map**, **Flowchart** & **Markdown** — local-first, real-time collaboration, shareable links.
+> A self-hosted document & diagram workspace. Rich-text editor with embedded mind maps and flowcharts, real-time collaboration via Yjs, and shareable read-only / collaborative links. **One container, one volume, zero config.**
 
-## Features
+![status](https://img.shields.io/badge/status-v0.2-01696f) ![runtime](https://img.shields.io/badge/runtime-node%2020%20%2B%20sqlite-blue)
 
-- 📝 **Markdown document** with block-level editing (Tiptap)
-- 🧠 **Mind Map** — insert & edit inline in document
-- 🔀 **Flowchart** — insert & edit inline in document
-- 💾 **Local-first** — IndexedDB persistence, works offline
-- 🔗 **Share links** — read-only or collaborative editing
-- 👥 **Real-time collaboration** — CRDT via Yjs + WebSocket
-- 📦 **Export** — JSON / PNG per diagram
-- 🗂️ **Workspace** — manage multiple documents
+---
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + TypeScript + Vite |
-| Document editor | Tiptap v2 |
-| Mind map / Flowchart | ReactFlow + custom layout |
-| Real-time CRDT | Yjs + y-websocket |
-| Local persistence | Dexie.js (IndexedDB) |
-| Backend | Hono + Node.js |
-| Database | SQLite + Drizzle ORM |
-| Auth | JWT (stateless) |
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js >= 18
-- pnpm >= 8 (recommended) or npm
-
-### Install & Run
+## Quick start — one command
 
 ```bash
-# Clone
+docker run -d --name flowmind -p 3000:3000 -v flowmind-data:/data ghcr.io/ruiyangsong/flowmind:latest
+```
+
+Open <http://localhost:3000>, register an account, start writing. Data lives in the `flowmind-data` volume and survives container restarts.
+
+> Building locally instead of pulling? See **[Build from source](#build-from-source)**.
+
+### Or with docker compose
+
+```yaml
+# docker-compose.yml
+services:
+  flowmind:
+    image: flowmind:latest
+    ports: ["3000:3000"]
+    volumes: ["flowmind-data:/data"]
+    restart: unless-stopped
+volumes:
+  flowmind-data:
+```
+
+```bash
+docker compose up -d
+```
+
+---
+
+## What you get
+
+| Feature | Notes |
+| --- | --- |
+| **Rich text editor** | Tiptap + StarterKit + task lists + slash menu |
+| **Embedded diagrams** | Mind maps & flowcharts (xyflow), live-editable inside the doc |
+| **Real-time collab** | Yjs CRDT over WebSocket, sharable `/collab/<token>` links |
+| **Read-only sharing** | Public `/share/<token>` links with optional expiry |
+| **Offline-first** | IndexedDB cache (Dexie) — keep typing without a connection |
+| **Save status indicator** | `Saved · Saving… · Offline · Unsynced` in the editor header |
+| **Export** | PDF via browser print dialog · Markdown download (`.md`) |
+| **Single-binary deploy** | Hono serves both API and frontend on one port; WS attached to same socket |
+| **Zero-config auth** | JWT secret auto-generated on first boot; scrypt-hashed passwords |
+| **Tiny first paint** | ~56 KB gzip first-load JS (editor/diagram chunks lazy-loaded) |
+
+---
+
+## Configuration
+
+All env vars are **optional**.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `PORT` | `3000` | Bind port for HTTP + WebSocket |
+| `DB_PATH` | `/data/flowmind.db` (prod) · `./data/flowmind.db` (dev) | SQLite file location |
+| `JWT_SECRET` | auto-generated → `${DATA_DIR}/.jwt_secret` | Override only if you need a fixed key (e.g. multi-host) |
+| `JWT_EXPIRES_IN` | `7d` | Token lifetime — accepts `7d` or `3600s` |
+| `FRONTEND_URL` | `""` (relative URLs) | Override only when serving share links from a different host than the API |
+
+Copy `.env.example` to `.env` for local dev.
+
+---
+
+## Build from source
+
+```bash
 git clone https://github.com/ruiyangsong/flowmind.git
 cd flowmind
 
-# Install all dependencies
+# Local dev (Vite + tsx on two ports, with proxy)
 pnpm install
-
-# Dev mode (frontend + backend + websocket all in one)
 pnpm dev
+# → frontend http://localhost:5173  ·  api+ws http://localhost:3000
 
-# Production build
-pnpm build
-pnpm start
+# Production build (single container)
+docker build -t flowmind:latest .
+docker run -d -p 3000:3000 -v flowmind-data:/data flowmind:latest
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+---
 
-### Environment Variables
-
-Copy `.env.example` to `.env` and fill in:
-
-```bash
-cp apps/server/.env.example apps/server/.env
-```
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | HTTP API server port |
-| `WS_PORT` | `3002` | WebSocket collaboration port |
-| `JWT_SECRET` | — | **Required.** Random secret for JWT signing |
-| `DB_PATH` | `./data/flowmind.db` | SQLite database file path |
-| `FRONTEND_URL` | `http://localhost:5173` | CORS allowed origin |
-
-## Project Structure
+## Architecture
 
 ```
-flowmind/
-├── apps/
-│   ├── web/          # React frontend
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   │   ├── editor/       # Tiptap document editor
-│   │   │   │   ├── mindmap/      # Mind map canvas
-│   │   │   │   ├── flowchart/    # Flowchart canvas
-│   │   │   │   └── ui/           # Shared UI components
-│   │   │   ├── pages/
-│   │   │   │   ├── Home.tsx      # Workspace / document list
-│   │   │   │   ├── Editor.tsx    # Main editor page
-│   │   │   │   ├── Share.tsx     # Read-only share view
-│   │   │   │   └── Templates.tsx # Template library
-│   │   │   ├── hooks/
-│   │   │   ├── stores/
-│   │   │   └── lib/
-│   └── server/       # Hono backend
-│       ├── src/
-│       │   ├── routes/
-│       │   │   ├── auth.ts
-│       │   │   ├── documents.ts
-│       │   │   └── share.ts
-│       │   ├── db/
-│       │   │   ├── schema.ts
-│       │   │   └── index.ts
-│       │   ├── ws/
-│       │   │   └── collab.ts     # y-websocket server
-│       │   └── index.ts
-│       └── .env.example
-├── packages/
-│   └── shared/       # Shared types & utils
-│       └── src/
-│           └── types.ts
-└── pnpm-workspace.yaml
+┌──────────────────────────────────────────────────────────┐
+│                    flowmind  (port 3000)                 │
+│                                                          │
+│   GET  /              → frontend/dist/index.html         │
+│   GET  /assets/*      → static files                     │
+│   *    /auth/*        → Hono router  (register/login/me) │
+│   *    /documents/*   → Hono router  (CRUD)              │
+│   *    /share/*       → Hono router  (tokens, resolve)   │
+│   UPGRADE /ws/<token> → y-websocket (Yjs CRDT)           │
+│                                                          │
+│   storage:  /data/flowmind.db   (SQLite, WAL)            │
+│             /data/.jwt_secret   (auto-generated)         │
+└──────────────────────────────────────────────────────────┘
 ```
 
-## Collaboration Architecture
+- **Backend**: Hono 4 · better-sqlite3 · drizzle-orm · jose JWT · ws/y-websocket
+- **Frontend**: React 18 · Vite · Tiptap · xyflow · Dexie · Zustand · TailwindCSS
+- **Storage**: SQLite (single file, WAL mode). No external services.
 
-```
-Browser A ──┐
-            ├──> WebSocket (port 3002) ──> Yjs document ──> SQLite snapshot
-Browser B ──┘
+---
 
-Share link: /share/:token  (read-only JWT)
-Collab link: /collab/:token (edit JWT, max 10 concurrent)
-```
+## Migrating from the pre-0.2 layout
+
+If you cloned an earlier copy with `apps/server` + `apps/web` + `packages/shared`:
+
+1. **Server**: the API moved from `apps/server/src/` to `backend/src/`. Routes & schema are unchanged.
+2. **Client**: the SPA moved from `apps/web/src/` to `frontend/src/`. Duplicate pages (`Home.tsx` + `HomePage.tsx`, two auth stores, etc.) have been collapsed into one canonical version.
+3. **Ports**: previously `3001` (HTTP) + `3002` (WS). Now a single `3000`. The WS endpoint moved from `ws://host:3002/<token>` to `ws://host:3000/ws/<token>`.
+4. **DB schema is identical** — drop your old `flowmind.db` into `/data` and it just works.
+5. **Passwords**: pre-0.2 used unsalted sha256. Existing users will need to re-register. If you have a populated database and care about migration, run a one-off SQL `DELETE FROM users` and let them sign up again — sessions auto-recover from `/auth/me`.
+
+---
+
+## Roadmap
+
+- [ ] Mermaid block (in addition to xyflow diagrams)
+- [ ] Multi-user document sharing without share tokens (workspace ACL)
+- [ ] DOCX export
+- [ ] Optional Postgres adapter for multi-instance deployments
+
+---
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).

@@ -1,0 +1,19 @@
+services:
+  flowmind:
+    build: .
+    image: flowmind:latest
+    container_name: flowmind
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - flowmind-data:/data
+    environment:
+      # All env vars are optional. Override only if you need to.
+      # PORT: 3000
+      # JWT_SECRET: change-me-in-prod      # auto-generated to /data/.jwt_secret if unset
+      # JWT_EXPIRES_IN: 7d
+      NODE_ENV: production
+
+volumes:
+  flowmind-data:

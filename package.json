@@ -1,15 +1,19 @@
 {
   "name": "flowmind",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "description": "A self-hosted document & diagram workspace — single container, SQLite, zero config",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter @flowmind/server dev\"",
-    "build": "pnpm --filter @flowmind/server build",
-    "start": "pnpm --filter @flowmind/server start",
-    "typecheck": "pnpm -r typecheck"
+    "dev":             "concurrently -k -n be,fe -c blue,green \"pnpm --filter flowmind-backend dev\" \"pnpm --filter flowmind-frontend dev\"",
+    "build":           "pnpm --filter flowmind-frontend build && pnpm --filter flowmind-backend build",
+    "build:frontend":  "pnpm --filter flowmind-frontend build",
+    "build:backend":   "pnpm --filter flowmind-backend build",
+    "start":           "node backend/dist/index.js",
+    "typecheck":       "pnpm -r typecheck"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "typescript": "^5.4.5"
-  }
+    "typescript":   "^5.4.5"
+  },
+  "packageManager": "pnpm@9.0.0"
 }
