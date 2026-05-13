@@ -23,9 +23,29 @@
 
 ---
 
-## v0.4 — 让写作更智能
+## v0.4a — 现代文档体验（飞书启发，5 天冲刺）
 
-主题：AI 与"图 + 文"定位深度结合，不做又一个侧边栏对话框。
+主题：把飞书 / Notion 用户习以为常、缺了就难受的"基础体验"补齐。调研详见 [research/feishu_research.md](./research/feishu_research.md)。开源 Tiptap 扩展加速，全部 MIT。
+
+| 状态 | 优先级 | 项 | 描述 | 实现 |
+| --- | --- | --- | --- | --- |
+| 📋 | 🔴 P0 | 代码块语法高亮 | `/code` 块支持语言选择 + 复制按钮 | `@tiptap/extension-code-block-lowlight` + `lowlight`，按需注册 js/ts/python/go/sql 5 语言（避免全包 ~150KB gzip） |
+| 📋 | 🔴 P0 | 字数统计 | 底栏显示字数 / 字符数 / 阅读时长 | `@tiptap/extension-character-count`，接入 SaveIndicator 区域 |
+| 📋 | 🔴 P0 | 折叠块 Toggle | `/toggle` 创建可折叠分组，写长文必备 | `@tiptap/extension-details` + details-summary + details-content 三件套 |
+| 📋 | 🔴 P0 | Callout 高亮块 | `/callout` 信息块，6 色（info/warn/success/danger/note/tip） | 自写 Tiptap Node + NodeView，Markdown 导出为 `> [!INFO]` GFM admonition |
+| 📋 | 🟠 P1 | TOC 大纲面板 | 右侧大纲，滚动时高亮当前位置（scroll spy） | `@tiptap/extension-table-of-contents` + 自写 React 侧栏 |
+| 📋 | 🟠 P1 | Block 拖拽手柄 | 左侧 `⋮⋮` 悬停出现，拖整块换位 | `tiptap-extension-global-drag-handle` MIT 149⭐ |
+| 📋 | 🟠 P1 | 行首 `+` 按钮 | 空行左侧 `+` 快速插块，与拖拽手柄共享定位 infra | 与上一项一起做，复用 floating positioning |
+| 📋 | 🟡 P2 | 链接预览卡片 | 粘贴 URL 自动 fetch og:tags 生成卡片 | 后端 `/api/link-preview` + 前端 InlineCard NodeView |
+
+❄️ 已评估但暂不做：
+- **Typography 自动替换**（中文场景反人类，`()`/`""`/`...` 都有意义）
+
+---
+
+## v0.4b — 让写作更智能（AI 主线）
+
+主题：AI 与"图 + 文"定位深度结合，不做又一个侧边栏对话框。v0.4a 完成后启动。
 
 | 状态 | 优先级 | 项 | 描述 |
 | --- | --- | --- | --- |
