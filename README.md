@@ -125,10 +125,14 @@ If you cloned an earlier copy with `apps/server` + `apps/web` + `packages/shared
 
 ## Roadmap
 
-- [ ] Mermaid block (in addition to xyflow diagrams)
-- [ ] Multi-user document sharing without share tokens (workspace ACL)
-- [ ] DOCX export
-- [ ] Optional Postgres adapter for multi-instance deployments
+See [docs/PRD.md](./docs/PRD.md) for product definition & design principles, and [docs/ROADMAP.md](./docs/ROADMAP.md) for the prioritised iteration list.
+
+Next milestones at a glance:
+
+- **v0.3** — More diagram blocks (Mermaid, Excalidraw, Kanban) + template library
+- **v0.4** — AI features (`/ai` slash command, selection → mind map, multi-provider)
+- **v0.5** — Folders / tags, full-text search, version history
+- **v0.6** — Attachments, DOCX export, scheduled backups
 
 ---
 
