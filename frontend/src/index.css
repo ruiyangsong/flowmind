@@ -39,6 +39,8 @@
 .tiptap pre { @apply bg-gray-900 text-gray-100 p-4 rounded-lg my-3 overflow-x-auto; }
 .tiptap pre code { @apply bg-transparent text-inherit; }
 .tiptap hr { @apply my-6 border-gray-200; }
+.tiptap img { @apply max-w-full h-auto my-3 rounded-md; }
+.tiptap img.ProseMirror-selectednode { @apply ring-2 ring-primary; }
 .tiptap ul[data-type="taskList"] { @apply list-none pl-0; }
 .tiptap ul[data-type="taskList"] li { @apply flex items-start gap-2 my-1; }
 .tiptap ul[data-type="taskList"] li input { @apply mt-1 accent-primary; }

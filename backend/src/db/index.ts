@@ -45,6 +45,19 @@ export function runMigrations() {
       created_at  TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_share_tokens_doc ON share_tokens(document_id);
+    CREATE TABLE IF NOT EXISTS uploads (
+      id            TEXT PRIMARY KEY,
+      owner_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      content_hash  TEXT NOT NULL,
+      size          INTEGER NOT NULL,
+      mime          TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      storage_key   TEXT NOT NULL,
+      driver        TEXT NOT NULL DEFAULT 'local',
+      created_at    TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_uploads_owner ON uploads(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_uploads_hash  ON uploads(content_hash);
   `)
   console.log(`[flowmind] db ready -> ${dbPath}`)
 }

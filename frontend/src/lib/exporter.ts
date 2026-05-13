@@ -48,6 +48,12 @@ function renderBlock(n: Node, depth = 0): string {
       const lang = n.attrs?.language ?? ''
       return '```' + lang + '\n' + renderChildren(n) + '\n```\n\n'
     }
+    case 'image': {
+      const src = n.attrs?.src ?? ''
+      const alt = (n.attrs?.alt ?? '').replace(/[\[\]]/g, '')
+      const title = n.attrs?.title ? ` "${String(n.attrs.title).replace(/"/g, '')}"` : ''
+      return `![${alt}](${src}${title})\n\n`
+    }
     case 'diagramBlock': {
       const d = n.attrs?.diagramData
       if (!d) return ''
@@ -79,7 +85,11 @@ export function toMarkdown(editor: Editor, title: string): string {
  * and triggers the browser's native print dialog. Zero extra bundle weight.
  */
 export function printToPdf(editor: Editor, title: string) {
-  const html = editor.getHTML()
+  // For print, rewrite relative /uploads/* image src to absolute URLs so the
+  // popup (about:blank with no base href) can still fetch them.
+  const origin = window.location.origin
+  let html = editor.getHTML()
+  html = html.replace(/(<img\b[^>]*\bsrc=)(["'])(\/[^"']*)\2/gi, (_m, pre, q, path) => `${pre}${q}${origin}${path}${q}`)
   const safeTitle = (title || 'Untitled').replace(/[<>]/g, '')
   const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
 <style>
@@ -91,6 +101,7 @@ export function printToPdf(editor: Editor, title: string) {
   pre { background:#f3f4f6; padding:12px; border-radius:6px; overflow:auto; }
   code { font-family: 'JetBrains Mono', monospace; background:#f3f4f6; padding:1px 5px; border-radius:3px; }
   blockquote { border-left:3px solid #01696f; margin: 12px 0; padding-left:12px; color:#555; }
+  img { max-width: 100%; height: auto; margin: 12px 0; border-radius: 4px; }
   ul[data-type="taskList"] { list-style: none; padding-left: 0; }
   ul[data-type="taskList"] li { display: flex; gap: 6px; }
   hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }

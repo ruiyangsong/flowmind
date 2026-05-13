@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { GitBranch, Workflow, Heading1, Heading2, List, ListOrdered, CheckSquare, Code, Quote } from 'lucide-react'
+import { GitBranch, Workflow, Heading1, Heading2, List, ListOrdered, CheckSquare, Code, Quote, Image as ImageIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
+import { uploadFile, isImageFile } from '@/lib/uploads'
 
 interface MenuItem {
   icon: React.ReactNode
@@ -49,6 +50,27 @@ const MENU_ITEMS: MenuItem[] = [
         type: 'diagram',
         attrs: { diagramId: id, diagramType: 'flowchart', data: defaultData, height: 400 },
       }).run()
+    },
+  },
+  {
+    icon: <ImageIcon size={16} className="text-[#01696f]" />,
+    label: 'Image',
+    description: 'Upload and insert an image',
+    action: (editor) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file || !isImageFile(file)) return
+        try {
+          const up = await uploadFile(file)
+          editor.chain().focus().deleteRange(editor.state.selection).setImage({ src: up.url, alt: up.originalName }).run()
+        } catch (e: any) {
+          alert(`Upload failed: ${e?.message ?? 'unknown error'}`)
+        }
+      }
+      input.click()
     },
   },
   { icon: <Heading1 size={16} />, label: 'Heading 1', description: 'Large section heading', action: (e) => e.chain().focus().deleteRange(e.state.selection).toggleHeading({ level: 1 }).run() },

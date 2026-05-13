@@ -32,5 +32,19 @@ export type User          = typeof users.$inferSelect
 export type NewUser       = typeof users.$inferInsert
 export type Document      = typeof documents.$inferSelect
 export type NewDocument   = typeof documents.$inferInsert
+export const uploads = sqliteTable('uploads', {
+  id:           text('id').primaryKey(),
+  ownerId:      text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  contentHash:  text('content_hash').notNull(),
+  size:         integer('size').notNull(),
+  mime:         text('mime').notNull(),
+  originalName: text('original_name').notNull(),
+  storageKey:   text('storage_key').notNull(),  // e.g. ab/abcdef... .png — driver-relative path
+  driver:       text('driver').notNull().default('local'),
+  createdAt:    text('created_at').notNull(),
+})
+
 export type ShareToken    = typeof shareTokens.$inferSelect
 export type NewShareToken = typeof shareTokens.$inferInsert
+export type Upload        = typeof uploads.$inferSelect
+export type NewUpload     = typeof uploads.$inferInsert

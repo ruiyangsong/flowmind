@@ -11,6 +11,7 @@ import { dirname, join, resolve } from 'node:path'
 import { authRouter } from './routes/auth.js'
 import { documentsRouter } from './routes/documents.js'
 import { shareRouter } from './routes/share.js'
+import { uploadsRouter } from './routes/uploads.js'
 import { runMigrations } from './db/index.js'
 import { ensureJwtSecret } from './lib/secret.js'
 import { attachCollabServer } from './ws/collab.js'
@@ -36,11 +37,13 @@ app.use('*', logger())
 app.use('/auth/*', cors())
 app.use('/documents/*', cors())
 app.use('/share/*', cors())
+app.use('/uploads/*', cors())
 
 // ─── API routes ─────────────────────────────────────────────────────────────
 app.route('/auth', authRouter)
 app.route('/documents', documentsRouter)
 app.route('/share', shareRouter)
+app.route('/uploads', uploadsRouter)
 
 app.get('/health', (c) => c.json({ ok: true, version: '0.2.0', mode: SERVE_STATIC ? 'standalone' : 'dev' }))
 
@@ -56,7 +59,7 @@ if (SERVE_STATIC) {
     // Skip API paths (they're matched above already, but defensive)
     const p = c.req.path
     if (p.startsWith('/auth') || p.startsWith('/documents') || p.startsWith('/share') ||
-        p.startsWith('/health') || p.startsWith('/ws')) {
+        p.startsWith('/uploads') || p.startsWith('/health') || p.startsWith('/ws')) {
       return c.notFound()
     }
     try {
