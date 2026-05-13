@@ -3,9 +3,8 @@ import { type Editor } from '@tiptap/react'
 import {
   Bold, Italic, Strikethrough, Code, Heading1, Heading2,
   List, ListOrdered, CheckSquare, Quote, Minus,
-  Network, GitBranch, Undo2, Redo2
+  Undo2, Redo2
 } from 'lucide-react'
-import { createDiagram } from '@/components/diagram/diagramExtension'
 
 interface Props { editor: Editor }
 
@@ -33,11 +32,6 @@ function Divider() {
 }
 
 export default function Toolbar({ editor }: Props) {
-  const insertDiagram = (type: 'mindmap' | 'flowchart') => {
-    const data = createDiagram(type)
-    editor.chain().focus().insertContent({ type: 'diagramBlock', attrs: { diagramData: data } }).run()
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-gray-200 bg-white sticky top-0 z-20">
       <Btn onClick={() => editor.chain().focus().undo().run()} title="Undo">
@@ -82,21 +76,8 @@ export default function Toolbar({ editor }: Props) {
       <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">
         <Minus size={15} />
       </Btn>
-      <Divider />
-      <button
-        onMouseDown={(e) => { e.preventDefault(); insertDiagram('mindmap') }}
-        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-primary border border-primary-light hover:bg-primary-light transition-colors"
-        title="Insert Mind Map"
-      >
-        <Network size={13} /> Mind Map
-      </button>
-      <button
-        onMouseDown={(e) => { e.preventDefault(); insertDiagram('flowchart') }}
-        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-primary border border-primary-light hover:bg-primary-light transition-colors"
-        title="Insert Flowchart"
-      >
-        <GitBranch size={13} /> Flowchart
-      </button>
+      <div className="flex-1" />
+      <span className="text-[11px] text-gray-400 px-2 select-none hidden sm:inline">Type <kbd className="px-1 py-0.5 bg-gray-100 rounded border border-gray-200 text-[10px]">/</kbd> for blocks</span>
     </div>
   )
 }
