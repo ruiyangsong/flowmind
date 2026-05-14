@@ -47,18 +47,29 @@ const DocumentEditor = forwardRef<EditorHandle, Props>(function DocumentEditor(
     content: (() => { try { return JSON.parse(initialContent) } catch { return initialContent || '' } })(),
     editable: !readonly,
     editorProps: {
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         if (readonly) return false
         if (event.key === '/' && !slashOpenRef.current) {
-          // Position the menu under the caret using viewport coords.
-          const sel = window.getSelection()
-          if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0).cloneRange()
-            range.collapse(true)
-            const rect = range.getBoundingClientRect()
-            if (rect && rect.bottom > 0) {
-              setSlashPos({ top: rect.bottom + 6, left: rect.left })
-            }
+          // Use ProseMirror's coordsAtPos — always returns correct viewport coords.
+          try {
+            const { from } = view.state.selection
+            const coords = view.coordsAtPos(from)
+            const MENU_H = 340
+            const MENU_W = 256
+            const PAD = 10
+            const vh = window.innerHeight
+            const vw = window.innerWidth
+            const flipUp = coords.bottom + MENU_H + PAD > vh
+            const top = flipUp
+              ? Math.max(PAD, coords.top - MENU_H - 6)
+              : coords.bottom + 6
+            const left = Math.min(
+              Math.max(PAD, coords.left),
+              vw - MENU_W - PAD
+            )
+            setSlashPos({ top, left })
+          } catch {
+            setSlashPos({ top: 100, left: 100 })
           }
           slashOpenRef.current = true
           setSlashOpen(true)

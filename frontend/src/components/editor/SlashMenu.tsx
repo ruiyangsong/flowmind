@@ -116,7 +116,7 @@ export default function SlashMenu({ editor, onClose }: { editor: any; onClose: (
   }, [filtered, activeIdx, editor, onClose])
 
   return (
-    <div ref={ref} className="absolute z-50 w-64 bg-white rounded-xl border border-[#d4d1ca] shadow-lg overflow-hidden">
+    <div ref={ref} className="w-64 bg-white rounded-xl border border-[#d4d1ca] shadow-lg overflow-hidden">
       <div className="px-3 py-2 border-b border-[#d4d1ca]">
         <input
           autoFocus
