@@ -42,11 +42,20 @@ export interface DiagramEdge {
   label?: string
 }
 
+// Logic-style mind map: tree shape (used when type === 'mindmap')
+export interface MindMapTreeNode {
+  id: string
+  label: string
+  children: MindMapTreeNode[]
+}
+
 export interface DiagramData {
   id: string
   type: DiagramType
   nodes: DiagramNode[]
   edges: DiagramEdge[]
+  // Optional tree representation for mindmap (preferred when present)
+  root?: MindMapTreeNode
   viewport?: { x: number; y: number; zoom: number }
 }
 

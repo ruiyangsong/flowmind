@@ -14,17 +14,27 @@ const MENU_ITEMS: MenuItem[] = [
   {
     icon: <GitBranch size={16} className="text-[#01696f]" />,
     label: 'Mind Map',
-    description: 'Insert a mind map canvas',
+    description: 'Insert a logic-style mind map',
     action: (editor) => {
-      const id = nanoid()
-      const defaultData = JSON.stringify({
-        id, type: 'mindmap',
-        nodes: [{ id: 'root', label: 'Central Idea', x: 300, y: 200 }],
-        edges: [],
-      })
+      const rootId = nanoid()
       editor.chain().focus().deleteRange(editor.state.selection).insertContent({
-        type: 'diagram',
-        attrs: { diagramId: id, diagramType: 'mindmap', data: defaultData, height: 400 },
+        type: 'diagramBlock',
+        attrs: {
+          diagramData: {
+            id: nanoid(),
+            type: 'mindmap',
+            nodes: [],
+            edges: [],
+            root: {
+              id: rootId,
+              label: 'Central Idea',
+              children: [
+                { id: nanoid(), label: 'Idea 1', children: [] },
+                { id: nanoid(), label: 'Idea 2', children: [] },
+              ],
+            },
+          },
+        },
       }).run()
     },
   },
@@ -33,22 +43,23 @@ const MENU_ITEMS: MenuItem[] = [
     label: 'Flowchart',
     description: 'Insert a flowchart canvas',
     action: (editor) => {
-      const id = nanoid()
-      const defaultData = JSON.stringify({
-        id, type: 'flowchart',
-        nodes: [
-          { id: '1', label: 'Start', type: 'start', x: 250, y: 80 },
-          { id: '2', label: 'Process', type: 'process', x: 250, y: 200 },
-          { id: '3', label: 'End', type: 'end', x: 250, y: 320 },
-        ],
-        edges: [
-          { id: 'e1-2', source: '1', target: '2' },
-          { id: 'e2-3', source: '2', target: '3' },
-        ],
-      })
       editor.chain().focus().deleteRange(editor.state.selection).insertContent({
-        type: 'diagram',
-        attrs: { diagramId: id, diagramType: 'flowchart', data: defaultData, height: 400 },
+        type: 'diagramBlock',
+        attrs: {
+          diagramData: {
+            id: nanoid(),
+            type: 'flowchart',
+            nodes: [
+              { id: '1', label: 'Start', type: 'start', x: 250, y: 80 },
+              { id: '2', label: 'Process', type: 'process', x: 250, y: 200 },
+              { id: '3', label: 'End', type: 'end', x: 250, y: 320 },
+            ],
+            edges: [
+              { id: 'e1-2', source: '1', target: '2' },
+              { id: 'e2-3', source: '2', target: '3' },
+            ],
+          },
+        },
       }).run()
     },
   },

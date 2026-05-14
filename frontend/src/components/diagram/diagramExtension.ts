@@ -43,15 +43,16 @@ export function createDiagram(type: 'mindmap' | 'flowchart'): DiagramData {
     return {
       id: crypto.randomUUID(),
       type: 'mindmap',
-      nodes: [
-        { id: '1', label: 'Main Topic', x: 200, y: 150 },
-        { id: '2', label: 'Branch A', x: 400, y: 80 },
-        { id: '3', label: 'Branch B', x: 400, y: 220 },
-      ],
-      edges: [
-        { id: 'e1-2', source: '1', target: '2' },
-        { id: 'e1-3', source: '1', target: '3' },
-      ],
+      nodes: [],
+      edges: [],
+      root: {
+        id: crypto.randomUUID(),
+        label: 'Central Idea',
+        children: [
+          { id: crypto.randomUUID(), label: 'Idea 1', children: [] },
+          { id: crypto.randomUUID(), label: 'Idea 2', children: [] },
+        ],
+      },
     }
   }
   return {

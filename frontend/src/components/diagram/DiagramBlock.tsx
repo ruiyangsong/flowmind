@@ -1,25 +1,28 @@
 import React, { useState } from 'react'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { GitBranch, Network, Pencil, Copy, Trash2 } from 'lucide-react'
-import MindMap from './MindMap'
+import LogicMindMap from '../mindmap/LogicMindMap'
 import Flowchart from './Flowchart'
 import type { DiagramData } from '@/lib/types'
 
 export default function DiagramBlock({ node, updateAttributes, deleteNode, editor }: NodeViewProps) {
-  const [editing, setEditing] = useState(false)
   const diagramData: DiagramData = node.attrs.diagramData
   const type = diagramData.type
+  // mindmap: always editable on click; flowchart: keep edit-mode toggle for now
+  const [flowchartEditing, setFlowchartEditing] = useState(false)
+  const editing = type === 'mindmap' ? true : flowchartEditing
 
   const handleChange = (updated: DiagramData) => {
     updateAttributes({ diagramData: updated })
   }
 
   const handleCopy = () => {
-    const json = editor.getJSON()
-    // Insert a duplicate after current node
     editor.commands.insertContentAt(
       editor.state.selection.to,
-      { type: 'diagramBlock', attrs: { diagramData: { ...diagramData, id: crypto.randomUUID() } } }
+      {
+        type: 'diagramBlock',
+        attrs: { diagramData: { ...diagramData, id: crypto.randomUUID() } },
+      }
     )
   }
 
@@ -32,13 +35,15 @@ export default function DiagramBlock({ node, updateAttributes, deleteNode, edito
           {type === 'mindmap' ? 'Mind Map' : 'Flowchart'}
         </div>
         <div className="flex gap-1">
-          <button
-            onClick={() => setEditing(!editing)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary transition-colors"
-            title={editing ? 'Done editing' : 'Edit diagram'}
-          >
-            <Pencil size={13} />
-          </button>
+          {type === 'flowchart' && (
+            <button
+              onClick={() => setFlowchartEditing(!flowchartEditing)}
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary transition-colors"
+              title={flowchartEditing ? 'Done editing' : 'Edit diagram'}
+            >
+              <Pencil size={13} />
+            </button>
+          )}
           <button
             onClick={handleCopy}
             className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary transition-colors"
@@ -58,7 +63,7 @@ export default function DiagramBlock({ node, updateAttributes, deleteNode, edito
 
       {/* Canvas */}
       {type === 'mindmap' ? (
-        <MindMap data={diagramData} readonly={!editing} onChange={editing ? handleChange : undefined} />
+        <LogicMindMap data={diagramData} onChange={handleChange} />
       ) : (
         <Flowchart data={diagramData} readonly={!editing} onChange={editing ? handleChange : undefined} />
       )}
