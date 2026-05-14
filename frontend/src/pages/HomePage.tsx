@@ -1,110 +1,271 @@
-import React, { useEffect, useState } from 'react'
+/**
+ * HomePage — dashboard of documents.
+ *
+ * Local-first list: shows IndexedDB cache instantly, then reconciles with
+ * server. Cmd+N creates a new doc; Cmd+K opens the command palette.
+ */
+
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, FileText, Trash2, LogOut } from 'lucide-react'
+import { Plus, FileText, Trash2, Search, Brain } from 'lucide-react'
+import AppHeader from '@/components/AppHeader'
+import CommandPalette, { useCommandPalette, type CommandItem } from '@/components/CommandPalette'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { listLocalDocs, saveLocalDoc, deleteLocalDoc } from '@/lib/db'
 
-interface Doc { id: string; title: string; updatedAt: string; isPublic: boolean }
+interface DocRow { id: string; title: string; updatedAt: string }
 
 export default function HomePage() {
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
-  const [docs, setDocs] = useState<Doc[]>([])
+  const { open, setOpen } = useCommandPalette()
+  const [docs, setDocs] = useState<DocRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
 
+  // ── Hydrate from local cache then server ──────────────────────────────────
   useEffect(() => {
-    api.listDocuments().then((r) => { setDocs(r.data); setLoading(false) }).catch(() => setLoading(false))
+    let cancelled = false
+    ;(async () => {
+      const local = await listLocalDocs()
+      if (!cancelled && local.length) {
+        setDocs(local.map((d) => ({ id: d.id, title: d.title || 'Untitled', updatedAt: d.updatedAt })))
+        setLoading(false)
+      }
+      try {
+        const r = await api.listDocuments()
+        if (cancelled) return
+        const list: DocRow[] = (r.data || []).map((d: any) => ({
+          id: d.id, title: d.title || 'Untitled', updatedAt: d.updatedAt,
+        }))
+        setDocs(list)
+        // sync into local cache
+        for (const d of (r.data || [])) {
+          await saveLocalDoc({
+            id: d.id, title: d.title || 'Untitled',
+            content: typeof d.content === 'string' ? d.content : '',
+            updatedAt: d.updatedAt, synced: true,
+          })
+        }
+      } catch {
+        // offline — keep local
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   const createDoc = async () => {
-    const res = await api.createDocument({ title: 'Untitled' })
-    navigate(`/editor/${res.data.id}`)
+    try {
+      const res = await api.createDocument({ title: 'Untitled', content: '' })
+      const d = res.data
+      await saveLocalDoc({
+        id: d.id, title: d.title || 'Untitled',
+        content: '', updatedAt: d.updatedAt, synced: true,
+      })
+      navigate(`/editor/${d.id}`)
+    } catch (e: any) {
+      alert('Failed to create document: ' + (e?.message || 'unknown'))
+    }
   }
 
   const deleteDoc = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!confirm('Delete this document?')) return
-    await api.deleteDocument(id)
-    setDocs((d) => d.filter((x) => x.id !== id))
+    setDocs((arr) => arr.filter((x) => x.id !== id))
+    try { await api.deleteDocument(id) } catch {}
+    await deleteLocalDoc(id)
   }
 
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey
+      const tag = (e.target as HTMLElement)?.tagName
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA'
+      if (isMod && e.key.toLowerCase() === 'n') { e.preventDefault(); createDoc() }
+      if (!isMod && !inField && e.key === '/') { e.preventDefault(); setOpen(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (!s) return docs
+    return docs.filter((d) => d.title.toLowerCase().includes(s))
+  }, [q, docs])
+
+  const paletteItems: CommandItem[] = useMemo(() => ([
+    { id: 'new', label: 'New document', group: 'Document', shortcut: '⌘N', run: createDoc },
+  ]), [])
+
+  const fmt = (iso: string) => new Date(iso).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
 
   return (
-    <div className="min-h-screen bg-surface-bg">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-56 bg-white border-r border-gray-200 flex flex-col p-4">
-        <div className="flex items-center gap-2 mb-8">
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#01696f"/>
-            <circle cx="16" cy="10" r="4" fill="white"/>
-            <circle cx="8" cy="22" r="3" fill="white" opacity="0.8"/>
-            <circle cx="24" cy="22" r="3" fill="white" opacity="0.8"/>
-            <line x1="16" y1="14" x2="8" y2="19" stroke="white" strokeWidth="1.5" opacity="0.6"/>
-            <line x1="16" y1="14" x2="24" y2="19" stroke="white" strokeWidth="1.5" opacity="0.6"/>
-          </svg>
-          <span className="font-semibold text-gray-900">FlowMind</span>
-        </div>
-        <nav className="flex flex-col gap-1 flex-1">
-          <button onClick={createDoc} className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors">
-            <Plus size={14} /> New Document
-          </button>
-        </nav>
-        <div className="border-t border-gray-100 pt-3">
-          <p className="text-xs font-medium text-gray-800 truncate">{user?.name}</p>
-          <p className="text-xs text-gray-400 truncate mb-2">{user?.email}</p>
-          <button onClick={() => { logout(); navigate('/login') }} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 transition-colors">
-            <LogOut size={12} /> Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="ml-56 p-8">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-6">My Documents</h1>
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1,2,3].map((i) => (
-              <div key={i} className="h-28 rounded-xl bg-gray-100 animate-pulse" />
-            ))}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+      <AppHeader
+        left={
+          <div style={{ position: 'relative', flex: 1, maxWidth: 480 }}>
+            <Search size={14} style={{
+              position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+            }} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search documents…"
+              style={{
+                width: '100%', padding: '6px 10px 6px 30px',
+                background: 'var(--bg-soft)', border: '1px solid var(--border)',
+                borderRadius: 6, fontSize: 13, color: 'var(--text)', outline: 'none',
+              }}
+            />
           </div>
-        ) : docs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary-light flex items-center justify-center mb-4">
-              <FileText size={28} className="text-primary" />
-            </div>
-            <h2 className="font-semibold text-gray-900 mb-1">No documents yet</h2>
-            <p className="text-sm text-gray-500 mb-4">Create your first document to get started</p>
-            <button onClick={createDoc} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-hover transition-colors">
-              <Plus size={14} /> New Document
+        }
+        right={
+          <>
+            <button
+              onClick={() => setOpen(true)}
+              title="Command palette (⌘K)"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 12, padding: '6px 10px', cursor: 'pointer',
+                background: 'transparent', color: 'var(--text-soft)',
+                border: '1px solid var(--border)', borderRadius: 6,
+              }}
+            >
+              <kbd className="fm-kbd">⌘K</kbd>
             </button>
+            <button
+              onClick={createDoc}
+              title="New document (⌘N)"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 13, padding: '6px 12px', cursor: 'pointer',
+                background: 'var(--accent)', color: '#fff',
+                border: 0, borderRadius: 6, fontWeight: 500,
+              }}
+            >
+              <Plus size={14} /> New
+            </button>
+          </>
+        }
+      />
+
+      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              {user?.name ? `Welcome, ${user.name}` : 'Documents'}
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+              {docs.length} document{docs.length === 1 ? '' : 's'} · Press <kbd className="fm-kbd">⌘N</kbd> to create, <kbd className="fm-kbd">⌘K</kbd> to search commands
+            </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {docs.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => navigate(`/editor/${doc.id}`)}
-                className="group relative bg-white border border-gray-200 rounded-xl p-4 cursor-pointer hover:border-primary hover:shadow-sm transition-all"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-offset flex items-center justify-center">
-                    <FileText size={15} className="text-primary" />
+
+          {loading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="fm-skeleton" style={{ height: 110, borderRadius: 10 }} />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState onCreate={createDoc} hasDocs={docs.length > 0} />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              {filtered.map((d) => (
+                <div
+                  key={d.id}
+                  onClick={() => navigate(`/editor/${d.id}`)}
+                  className="fm-fade-in"
+                  style={{
+                    position: 'relative',
+                    background: 'var(--panel)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: 14,
+                    cursor: 'pointer',
+                    transition: 'border-color 120ms, box-shadow 120ms, transform 120ms',
+                    boxShadow: 'var(--shadow)',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 6,
+                    background: 'var(--accent-soft)', color: 'var(--accent)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 10,
+                  }}>
+                    <FileText size={16} />
                   </div>
+                  <div style={{
+                    fontSize: 14, fontWeight: 500, color: 'var(--text)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{d.title || 'Untitled'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{fmt(d.updatedAt)}</div>
                   <button
-                    onClick={(e) => deleteDoc(doc.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                    onClick={(e) => deleteDoc(d.id, e)}
+                    title="Delete"
+                    style={{
+                      position: 'absolute', top: 8, right: 8,
+                      width: 26, height: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', color: 'var(--text-muted)',
+                      border: 0, borderRadius: 4, cursor: 'pointer',
+                      opacity: 0.6,
+                    }}
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
-                <h3 className="font-medium text-gray-900 text-sm truncate mb-1">{doc.title || 'Untitled'}</h3>
-                <p className="text-xs text-gray-400">{fmt(doc.updatedAt)}</p>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </main>
+
+      <CommandPalette open={open} onClose={() => setOpen(false)} extraItems={paletteItems} />
+    </div>
+  )
+}
+
+function EmptyState({ onCreate, hasDocs }: { onCreate: () => void; hasDocs: boolean }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      padding: '80px 20px', textAlign: 'center',
+    }}>
+      <div style={{
+        width: 60, height: 60, borderRadius: 14,
+        background: 'var(--accent-soft)', color: 'var(--accent)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 14,
+      }}>
+        <Brain size={28} />
+      </div>
+      <h2 style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+        {hasDocs ? 'No matching documents' : 'Start your first document'}
+      </h2>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, maxWidth: 380 }}>
+        MindForge gives you one document with three views: Markdown, mind map, and flowchart — same content, three lenses.
+      </p>
+      <button
+        onClick={onCreate}
+        style={{
+          marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '8px 14px', fontSize: 13, fontWeight: 500,
+          background: 'var(--accent)', color: '#fff',
+          border: 0, borderRadius: 6, cursor: 'pointer',
+        }}
+      >
+        <Plus size={14} /> New document
+      </button>
     </div>
   )
 }

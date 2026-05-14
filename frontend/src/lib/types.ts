@@ -5,8 +5,9 @@ export type DocumentType = 'document'
 export interface Document {
   id: string
   title: string
-  content: string       // Tiptap JSON serialized
-  createdAt: string     // ISO 8601
+  /** Plain Markdown — single source of truth */
+  content: string
+  createdAt: string
   updatedAt: string
   ownerId: string
   isPublic: boolean
@@ -22,41 +23,33 @@ export interface ShareToken {
   expiresAt?: string
 }
 
-// ─── Diagram blocks embedded in document ────────────────────────────────────
+// ─── View modes ──────────────────────────────────────────────────────────────
 
-export type DiagramType = 'mindmap' | 'flowchart'
+export type ViewMode = 'markdown' | 'mind' | 'flow'
 
-export interface DiagramNode {
+// ─── AST (the single source of truth across three views) ───────────────────
+
+/**
+ * Universal node model — every section / list-item / flow-step is a Node.
+ * IDs are stable across view switches so mind/flow can preserve positions.
+ */
+export interface AstNode {
   id: string
-  label: string
-  x?: number
-  y?: number
-  parentId?: string
-  type?: string         // for flowchart: 'process' | 'decision' | 'start' | 'end'
-}
-
-export interface DiagramEdge {
-  id: string
-  source: string
-  target: string
-  label?: string
-}
-
-// Logic-style mind map: tree shape (used when type === 'mindmap')
-export interface MindMapTreeNode {
-  id: string
-  label: string
-  children: MindMapTreeNode[]
-}
-
-export interface DiagramData {
-  id: string
-  type: DiagramType
-  nodes: DiagramNode[]
-  edges: DiagramEdge[]
-  // Optional tree representation for mindmap (preferred when present)
-  root?: MindMapTreeNode
-  viewport?: { x: number; y: number; zoom: number }
+  /** Tree depth, 0 = root */
+  depth: number
+  /** Display text (heading title / list item text / flow step label) */
+  text: string
+  /**
+   * Optional rich body — markdown chunks that belong to this node but are
+   * not themselves further sub-headings (paragraphs / code / math / etc).
+   */
+  body?: string
+  /** Semantic flavour for flow view */
+  flow?: 'start' | 'process' | 'decision' | 'end'
+  /** Optional per-view metadata */
+  mind?: { color?: string; collapsed?: boolean }
+  pos?: { x: number; y: number }
+  children: AstNode[]
 }
 
 // ─── API Response wrapper ────────────────────────────────────────────────────

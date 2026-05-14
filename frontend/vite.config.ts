@@ -23,9 +23,10 @@ export default defineConfig({
         // Aggressive chunking — keep first paint under ~200KB gzip.
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('@tiptap'))            return 'editor'
-            if (id.includes('prosemirror'))         return 'editor'
-            if (id.includes('@xyflow') || id.includes('d3-'))  return 'diagram'
+            if (id.includes('@codemirror') || id.includes('@lezer')) return 'editor'
+            if (id.includes('@xyflow') || id.includes('d3-') || id.includes('dagre')) return 'diagram'
+            if (id.includes('katex'))               return 'katex'
+            if (id.includes('mermaid'))             return 'mermaid'
             if (id.includes('yjs') || id.includes('y-protocols') || id.includes('y-websocket')) return 'collab'
             if (id.includes('lucide-react'))        return 'icons'
             if (id.includes('react-router'))        return 'router'

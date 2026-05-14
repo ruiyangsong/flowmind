@@ -11,8 +11,18 @@ const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
 
 function Spinner() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-bg">
-      <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    <div style={{
+      minHeight: '100vh', display: 'grid', placeItems: 'center',
+      background: 'var(--bg)',
+    }}>
+      <div style={{
+        width: 28, height: 28,
+        border: '2px solid var(--accent)',
+        borderTopColor: 'transparent',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

@@ -1,199 +1,327 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Share2, Check, Copy, Download, FileText, Printer } from 'lucide-react'
-import DocumentEditor, { type EditorHandle } from '@/components/editor/DocumentEditor'
-import SaveIndicator from '@/components/editor/SaveIndicator'
+/**
+ * EditorPage — the three-view workspace.
+ *
+ * Layout:
+ *   ┌───────────────────────── AppHeader ─────────────────────────┐
+ *   │  title input · view tabs (⌘1/2/3) · split toggle (⌘\)       │
+ *   ├──────────────────────────────────────────────────────────────┤
+ *   │  active view                                                 │
+ *   │  (in split mode: Markdown on the left, mind/flow on right)   │
+ *   └──────────────────────────────────────────────────────────────┘
+ *
+ * Data flow:
+ *   markdown (Document.content)  ── markdownToAst ──▶  ast  ──┐
+ *                                                              ▶ MindView/FlowView
+ *                                              ◀── astToMarkdown ─┘
+ *
+ * Local-first: every change debounces 500ms → IndexedDB; 2s → server.
+ */
+
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, FileText, GitBranch, Workflow, Columns2, Share2, Loader2, Check, type LucideIcon } from 'lucide-react'
+import AppHeader from '@/components/AppHeader'
+import CommandPalette, { useCommandPalette, type CommandItem } from '@/components/CommandPalette'
+import MarkdownEditor from '@/components/editor/MarkdownEditor'
+import MindView from '@/components/views/MindView'
+import FlowView from '@/components/views/FlowView'
 import { api } from '@/lib/api'
-import { getLocalDoc, saveLocalDoc } from '@/lib/db'
-import { useSaveStatus } from '@/stores/saveStatus'
-import { toMarkdown, downloadMarkdown, printToPdf } from '@/lib/exporter'
+import { saveLocalDoc, getLocalDoc } from '@/lib/db'
+import { markdownToAst, astToMarkdown } from '@/lib/ast'
+import type { AstNode, ViewMode } from '@/lib/types'
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 export default function EditorPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id = '' } = useParams()
   const navigate = useNavigate()
-  const editorRef = useRef<EditorHandle>(null)
-  const [doc, setDoc] = useState<{ id: string; title: string; content: string } | null>(null)
+  const { open, setOpen } = useCommandPalette()
+
+  const [title, setTitle] = useState('Untitled')
+  const [content, setContent] = useState('')
+  const [view, setView] = useState<ViewMode>('markdown')
+  const [split, setSplit] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [shareOpen, setShareOpen] = useState(false)
-  const [exportOpen, setExportOpen] = useState(false)
-  const [shareUrl, setShareUrl] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [shareMode, setShareMode] = useState<'readonly' | 'collab'>('readonly')
-  const markSaved = useSaveStatus((s) => s.markSaved)
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const lastSavedRef = useRef<string>('')
 
+  // ── Hydrate ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!id) return
-    const load = async () => {
-      const local = await getLocalDoc(id)
-      if (local) {
-        setDoc({ id: local.id, title: local.title, content: local.content })
-        setLoading(false)
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      // Try local cache first for instant paint
+      const cached = await getLocalDoc(id)
+      if (cached && !cancelled) {
+        setTitle(cached.title || 'Untitled')
+        setContent(cached.content || '')
+        lastSavedRef.current = cached.content || ''
       }
+      // Then refresh from server (gracefully)
       try {
-        const remote = await api.getDocument(id)
-        const d = remote.data
-        setDoc({ id: d.id, title: d.title, content: d.content })
-        const now = new Date().toISOString()
-        await saveLocalDoc({ id: d.id, title: d.title, content: d.content, updatedAt: now, synced: true })
-        markSaved()
-      } catch { /* offline — use local */ }
-      setLoading(false)
+        const res = await api.getDocument(id)
+        if (cancelled) return
+        const d = res.data
+        const remoteContent: string = typeof d?.content === 'string' ? d.content : ''
+        setTitle(d?.title || 'Untitled')
+        setContent(remoteContent)
+        lastSavedRef.current = remoteContent
+        await saveLocalDoc({
+          id, title: d?.title || 'Untitled',
+          content: remoteContent,
+          updatedAt: d?.updatedAt || new Date().toISOString(),
+          synced: true,
+        })
+      } catch {
+        // offline / new doc — keep cached
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [id])
+
+  // ── Persistence (local 500ms / remote 2s, debounced) ──────────────────────
+  const persistTimerRef = useRef<{ local?: number; remote?: number }>({})
+  const schedulePersist = useCallback((nextTitle: string, nextContent: string) => {
+    const t = persistTimerRef.current
+    if (t.local) window.clearTimeout(t.local)
+    if (t.remote) window.clearTimeout(t.remote)
+    setSaveState('saving')
+
+    t.local = window.setTimeout(async () => {
+      await saveLocalDoc({
+        id, title: nextTitle, content: nextContent,
+        updatedAt: new Date().toISOString(),
+        synced: false,
+      })
+    }, 500)
+
+    t.remote = window.setTimeout(async () => {
+      try {
+        await api.updateDocument(id, { title: nextTitle, content: nextContent })
+        lastSavedRef.current = nextContent
+        await saveLocalDoc({
+          id, title: nextTitle, content: nextContent,
+          updatedAt: new Date().toISOString(),
+          synced: true,
+        })
+        setSaveState('saved')
+        setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1500)
+      } catch {
+        setSaveState('error')
+      }
+    }, 2000)
+  }, [id])
+
+  const onTitleChange = (v: string) => {
+    setTitle(v)
+    schedulePersist(v, content)
+  }
+  const onContentChange = (v: string) => {
+    setContent(v)
+    schedulePersist(title, v)
+  }
+
+  // ── AST derivation for mind/flow views ────────────────────────────────────
+  const ast: AstNode = useMemo(() => {
+    const a = markdownToAst(content)
+    // Use document title as root text
+    a.text = title || 'Untitled'
+    return a
+  }, [content, title])
+
+  const onAstChange = (next: AstNode) => {
+    // Title stays in the title field; root text mirrors title
+    next.text = title
+    const md = astToMarkdown(next)
+    onContentChange(md)
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey
+      const tag = (e.target as HTMLElement)?.tagName
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA'
+      if (isMod && e.key === '1') { e.preventDefault(); setView('markdown') }
+      else if (isMod && e.key === '2') { e.preventDefault(); setView('mind') }
+      else if (isMod && e.key === '3') { e.preventDefault(); setView('flow') }
+      else if (isMod && e.key === '\\') { e.preventDefault(); setSplit((s) => !s) }
+      else if (isMod && e.key === 's') { e.preventDefault(); schedulePersist(title, content) }
+      else if (!inField && !isMod && e.key === '/') {
+        // Quick-open palette
+        e.preventDefault(); setOpen(true)
+      }
     }
-    load()
-  }, [id, markSaved])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [title, content, schedulePersist, setOpen])
 
-  const handleTitleChange = useCallback(async (title: string) => {
-    if (!doc) return
-    setDoc((d) => d ? { ...d, title } : null)
-    const now = new Date().toISOString()
-    await saveLocalDoc({ id: doc.id, title, content: doc.content, updatedAt: now, synced: false })
-    try { await api.updateDocument(doc.id, { title }); markSaved() } catch { /* offline */ }
-  }, [doc, markSaved])
-
-  const createShare = async () => {
-    if (!id) return
+  // ── Share ─────────────────────────────────────────────────────────────────
+  const onShare = async () => {
     try {
-      const res = await api.createShareToken(id, { mode: shareMode, expiresIn: '30d' })
-      // Server returns a path like `/share/...`; turn into a fully-qualified URL.
-      const url = res.data.shareUrl.startsWith('http')
-        ? res.data.shareUrl
-        : window.location.origin + res.data.shareUrl
-      setShareUrl(url)
-    } catch (e: any) { alert(e.message) }
+      const res = await api.createShareToken(id, { mode: 'readonly' })
+      const url = window.location.origin + '/share/' + res.data.token
+      await navigator.clipboard?.writeText(url).catch(() => {})
+      alert('Share link copied:\n' + url)
+    } catch (e: any) {
+      alert('Share failed: ' + (e?.message || 'unknown'))
+    }
   }
 
-  const copyUrl = async () => {
-    await navigator.clipboard.writeText(shareUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  // ── Command palette page-level commands ───────────────────────────────────
+  const paletteItems: CommandItem[] = useMemo(() => ([
+    { id: 'view-md',   label: 'View: Markdown',    group: 'View', shortcut: '⌘1', run: () => setView('markdown') },
+    { id: 'view-mind', label: 'View: Mind map',    group: 'View', shortcut: '⌘2', run: () => setView('mind') },
+    { id: 'view-flow', label: 'View: Flowchart',   group: 'View', shortcut: '⌘3', run: () => setView('flow') },
+    { id: 'split',     label: split ? 'Disable split view' : 'Enable split view', group: 'View', shortcut: '⌘\\', run: () => setSplit((s) => !s) },
+    { id: 'share',     label: 'Share document (copy link)', group: 'Document', run: onShare },
+    { id: 'back',      label: 'Back to dashboard', group: 'Navigate', run: () => navigate('/') },
+  ]), [split, navigate])
 
-  const exportPdf = () => {
-    const editor = editorRef.current?.getEditor()
-    if (!editor || !doc) return
-    printToPdf(editor, doc.title)
-    setExportOpen(false)
-  }
-
-  const exportMarkdown = () => {
-    const editor = editorRef.current?.getEditor()
-    if (!editor || !doc) return
-    downloadMarkdown(toMarkdown(editor, doc.title), doc.title)
-    setExportOpen(false)
-  }
-
-  if (loading) return (
-    <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-
-  if (!doc) return (
-    <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-      <p className="text-gray-500">Document not found.</p>
-    </div>
-  )
-
+  // ── UI ────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-surface-bg flex flex-col">
-      {/* Top bar */}
-      <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 flex-shrink-0">
-        <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-          <ArrowLeft size={15} /> Back
-        </button>
-        <div className="flex items-center gap-3">
-          <SaveIndicator />
-          <button
-            onClick={() => setExportOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-full hover:border-primary hover:text-primary transition-colors"
-            title="Export document"
-          >
-            <Download size={12} /> Export
-          </button>
-          <button
-            onClick={() => setShareOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary-light rounded-full hover:bg-primary-light transition-colors"
-          >
-            <Share2 size={12} /> Share
-          </button>
-        </div>
-      </header>
-
-      {/* Editor */}
-      <div className="flex-1 max-w-4xl w-full mx-auto p-6">
-        <DocumentEditor
-          ref={editorRef}
-          docId={doc.id}
-          title={doc.title}
-          initialContent={doc.content}
-          onTitleChange={handleTitleChange}
-        />
-      </div>
-
-      {/* Share modal */}
-      {shareOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShareOpen(false)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-semibold text-gray-900 mb-4">Share document</h2>
-            <div className="flex gap-2 mb-4">
-              {(['readonly', 'collab'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setShareMode(m)}
-                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
-                    shareMode === m ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600 hover:border-primary'
-                  }`}
-                >
-                  {m === 'readonly' ? 'Read only' : 'Collaborative'}
-                </button>
-              ))}
-            </div>
-            {!shareUrl ? (
-              <button onClick={createShare} className="w-full py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-hover transition-colors">
-                Generate link
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <input readOnly value={shareUrl} className="flex-1 text-xs px-3 py-2 border border-gray-200 rounded-lg bg-surface-offset text-gray-700" />
-                <button onClick={copyUrl} className="p-2 border border-gray-200 rounded-lg hover:bg-surface-offset transition-colors">
-                  {copied ? <Check size={14} className="text-primary" /> : <Copy size={14} className="text-gray-500" />}
-                </button>
-              </div>
-            )}
-            <button onClick={() => { setShareOpen(false); setShareUrl('') }} className="w-full mt-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-              Close
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+      <AppHeader
+        left={
+          <>
+            <button
+              onClick={() => navigate('/')}
+              title="Back (Esc)"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 13, padding: '6px 10px', cursor: 'pointer',
+                background: 'transparent', color: 'var(--text-soft)',
+                border: '1px solid var(--border)', borderRadius: 6,
+              }}
+            >
+              <ArrowLeft size={14} /> Back
             </button>
+            <input
+              value={title}
+              onChange={(e) => onTitleChange(e.target.value)}
+              placeholder="Untitled"
+              style={{
+                background: 'transparent', border: 0, outline: 'none',
+                fontSize: 14, fontWeight: 500, color: 'var(--text)',
+                minWidth: 200, maxWidth: 360,
+              }}
+            />
+            <SaveBadge state={saveState} />
+          </>
+        }
+        center={
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, padding: 2, background: 'var(--bg-sunken)', borderRadius: 8 }}>
+            <ViewTab active={view === 'markdown'} onClick={() => setView('markdown')} icon={FileText} label="Markdown" shortcut="⌘1" />
+            <ViewTab active={view === 'mind'}     onClick={() => setView('mind')}     icon={GitBranch} label="Mind"     shortcut="⌘2" />
+            <ViewTab active={view === 'flow'}     onClick={() => setView('flow')}     icon={Workflow}  label="Flow"     shortcut="⌘3" />
           </div>
-        </div>
-      )}
-
-      {/* Export modal */}
-      {exportOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setExportOpen(false)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-semibold text-gray-900 mb-4">Export document</h2>
-            <div className="flex flex-col gap-2">
-              <button onClick={exportPdf} className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-lg hover:border-primary hover:bg-primary-light/40 transition-colors text-left">
-                <Printer size={16} className="text-primary" />
-                <div>
-                  <div className="text-sm font-medium text-gray-900">PDF</div>
-                  <div className="text-xs text-gray-500">Open print dialog · Save as PDF</div>
-                </div>
-              </button>
-              <button onClick={exportMarkdown} className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-lg hover:border-primary hover:bg-primary-light/40 transition-colors text-left">
-                <FileText size={16} className="text-primary" />
-                <div>
-                  <div className="text-sm font-medium text-gray-900">Markdown</div>
-                  <div className="text-xs text-gray-500">Download .md file</div>
-                </div>
-              </button>
-            </div>
-            <button onClick={() => setExportOpen(false)} className="w-full mt-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-              Close
+        }
+        right={
+          <>
+            <button
+              onClick={() => setSplit((s) => !s)}
+              title="Toggle split view (⌘\)"
+              style={{
+                width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                background: split ? 'var(--accent-soft)' : 'transparent',
+                color: split ? 'var(--accent)' : 'var(--text-soft)',
+                border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+              }}
+            >
+              <Columns2 size={16} />
             </button>
+            <button
+              onClick={onShare}
+              title="Share"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 13, padding: '6px 10px', cursor: 'pointer',
+                background: 'var(--accent)', color: '#fff',
+                border: 0, borderRadius: 6,
+              }}
+            >
+              <Share2 size={14} /> Share
+            </button>
+          </>
+        }
+      />
+
+      <main style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        {loading ? (
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={20} className="animate-spin" />
           </div>
-        </div>
-      )}
+        ) : split ? (
+          <>
+            <Pane>
+              <MarkdownEditor value={content} onChange={onContentChange} onCommand={() => setOpen(true)} />
+            </Pane>
+            <div style={{ width: 1, background: 'var(--border-soft)' }} />
+            <Pane>
+              {view === 'flow'
+                ? <FlowView ast={ast} onChange={onAstChange} />
+                : <MindView ast={ast} onChange={onAstChange} />}
+            </Pane>
+          </>
+        ) : (
+          <Pane>
+            {view === 'markdown' && <MarkdownEditor value={content} onChange={onContentChange} onCommand={() => setOpen(true)} />}
+            {view === 'mind'     && <MindView     ast={ast}    onChange={onAstChange} />}
+            {view === 'flow'     && <FlowView     ast={ast}    onChange={onAstChange} />}
+          </Pane>
+        )}
+      </main>
+
+      <CommandPalette open={open} onClose={() => setOpen(false)} extraItems={paletteItems} />
     </div>
+  )
+}
+
+// ─── Small UI helpers ──────────────────────────────────────────────────────
+
+function Pane({ children }: { children: React.ReactNode }) {
+  return <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>{children}</div>
+}
+
+function ViewTab({
+  active, onClick, icon: Icon, label, shortcut,
+}: {
+  active: boolean; onClick: () => void; icon: LucideIcon; label: string; shortcut: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={`${label} (${shortcut})`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '6px 12px', fontSize: 13,
+        background: active ? 'var(--panel)' : 'transparent',
+        color: active ? 'var(--text)' : 'var(--text-soft)',
+        boxShadow: active ? 'var(--shadow)' : 'none',
+        border: 0, borderRadius: 6, cursor: 'pointer',
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  )
+}
+
+function SaveBadge({ state }: { state: SaveState }) {
+  if (state === 'idle') return null
+  const map = {
+    saving: { icon: Loader2, text: 'Saving', spin: true,  color: 'var(--text-muted)' },
+    saved:  { icon: Check,   text: 'Saved',  spin: false, color: 'var(--success)' },
+    error:  { icon: FileText,text: 'Offline',spin: false, color: 'var(--warning)' },
+  } as const
+  const m = map[state]
+  const Icon = m.icon
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: m.color }}>
+      <Icon size={12} className={m.spin ? 'animate-spin' : ''} /> {m.text}
+    </span>
   )
 }

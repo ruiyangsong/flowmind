@@ -1,8 +1,37 @@
-# FlowMind
+# MindForge (formerly FlowMind)
 
-> A self-hosted document & diagram workspace. Rich-text editor with embedded mind maps and flowcharts, real-time collaboration via Yjs, and shareable read-only / collaborative links. **One container, one volume, zero config.**
+> 一体化思维工作台 — 一个 Markdown 文档，三种视图：**Markdown / 脑图 / 流程图**，同源 AST，零信息损失。键盘优先，本地优先，自托管。
 
-![status](https://img.shields.io/badge/status-v0.2-01696f) ![runtime](https://img.shields.io/badge/runtime-node%2020%20%2B%20sqlite-blue)
+![status](https://img.shields.io/badge/status-v0.3-2563eb) ![runtime](https://img.shields.io/badge/runtime-node%2020%20%2B%20sqlite-blue) ![stack](https://img.shields.io/badge/stack-CodeMirror%206%20%2B%20xyflow-purple)
+
+## v0.3 — MindForge 重写说明
+
+v0.3 起前端完全重写，富文本编辑器从 Tiptap 切换为 **CodeMirror 6 + 同源 AST**：
+
+- **三视图同源**：`Document.content` 就是 plain Markdown。`markdownToAst()` / `astToMarkdown()` 双向转换，脱错零担忧。
+- **Markdown 视图**: CodeMirror 6 · 行号 / 折叠 / 语法高亮 / KaTeX。
+- **脑图视图**: ReactFlow (xyflow v12) + dagre · LR 布局 · Tab/Enter/F2/Del 键盘交互。
+- **流程图视图**: 有序列表 (`1.`) 自动识别为流程，`判断：` 前缀生成菱形。
+- **命令面板**: ⌘K / `/` 触发，fuzzy 搜文档 + 命令 + 视图切换。
+- **暗黑模式**: light / dark / auto 三态 · CSS 变量驱动。
+- **本地优先**: IndexedDB (Dexie) 500ms 本地 · 2s 后端同步。
+
+后端（Hono + better-sqlite3 + JWT + WebSocket）完全保留不动，API 兼容 v0.2。
+
+### 键盘表
+
+| Key       | Action                  |
+|-----------|-------------------------|
+| ⌘K        | Command palette         |
+| ⌘1/2/3   | Markdown / Mind / Flow  |
+| ⌘\\       | Toggle split view       |
+| ⌘N        | New document (HomePage) |
+| Tab       | Add child (Mind)        |
+| Enter     | Add sibling (Mind)      |
+| F2 / Space| Rename node (Mind)      |
+| Del       | Remove node (Mind)      |
+
+---
 
 ---
 

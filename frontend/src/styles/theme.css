@@ -1,0 +1,192 @@
+/* FlowMind theme tokens — light & dark */
+
+:root {
+  --bg:           #ffffff;
+  --bg-soft:      #f7f8fa;
+  --bg-sunken:    #eef0f3;
+  --panel:        #ffffff;
+  --border:       #e5e7eb;
+  --border-soft:  #eef0f3;
+  --text:         #111827;
+  --text-soft:    #4b5563;
+  --text-muted:   #9ca3af;
+  --accent:       #2563eb;
+  --accent-soft:  #dbeafe;
+  --danger:       #dc2626;
+  --success:      #059669;
+  --warning:      #d97706;
+  --code-bg:      #f6f8fa;
+  --shadow:       0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+  --kbd-bg:       #f3f4f6;
+  --kbd-border:   #d1d5db;
+}
+
+html.dark {
+  --bg:           #0d1117;
+  --bg-soft:      #11161d;
+  --bg-sunken:    #0a0d12;
+  --panel:        #161b22;
+  --border:       #30363d;
+  --border-soft:  #21262d;
+  --text:         #e6edf3;
+  --text-soft:    #c9d1d9;
+  --text-muted:   #8b949e;
+  --accent:       #58a6ff;
+  --accent-soft:  rgba(56,139,253,.15);
+  --danger:       #f85149;
+  --success:      #3fb950;
+  --warning:      #d29922;
+  --code-bg:      #161b22;
+  --shadow:       0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.5);
+  --kbd-bg:       #21262d;
+  --kbd-border:   #30363d;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'PingFang SC',
+               'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  transition: background-color 120ms ease, color 120ms ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars (subtle, theme-aware) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
+
+/* ── Reusable bits ───────────────────────────────────────────────────────── */
+
+.fm-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.fm-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-soft);
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+.fm-toast {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  border-radius: 8px;
+}
+
+.fm-skeleton {
+  background: linear-gradient(90deg, var(--bg-sunken) 25%, var(--border-soft) 50%, var(--bg-sunken) 75%);
+  background-size: 200% 100%;
+  animation: fm-skeleton 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+@keyframes fm-skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Editor surface ──────────────────────────────────────────────────────── */
+
+.fm-md {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.fm-md h1, .fm-md h2, .fm-md h3 { color: var(--text); font-weight: 600; letter-spacing: -0.01em; }
+.fm-md h1 { font-size: 28px; margin: 24px 0 14px; }
+.fm-md h2 { font-size: 22px; margin: 20px 0 12px; }
+.fm-md h3 { font-size: 18px; margin: 16px 0 10px; }
+.fm-md p  { margin: 10px 0; }
+.fm-md ul, .fm-md ol { margin: 10px 0; padding-left: 1.6em; }
+.fm-md li { margin: 4px 0; }
+.fm-md code {
+  background: var(--code-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.9em;
+}
+.fm-md pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.fm-md pre code { background: transparent; border: 0; padding: 0; }
+.fm-md blockquote {
+  margin: 12px 0;
+  padding: 4px 14px;
+  color: var(--text-soft);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-soft);
+  border-radius: 0 6px 6px 0;
+}
+.fm-md a { color: var(--accent); text-decoration: none; }
+.fm-md a:hover { text-decoration: underline; }
+.fm-md table { border-collapse: collapse; margin: 12px 0; }
+.fm-md th, .fm-md td { border: 1px solid var(--border); padding: 6px 10px; }
+
+/* KaTeX dark-mode tint */
+html.dark .katex { color: var(--text); }
+
+/* ── CodeMirror tweaks ───────────────────────────────────────────────────── */
+.cm-editor {
+  background: var(--bg) !important;
+  color: var(--text);
+  font-size: 14px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.cm-editor.cm-focused { outline: none; }
+.cm-gutters {
+  background: var(--bg-soft) !important;
+  color: var(--text-muted) !important;
+  border-right: 1px solid var(--border-soft) !important;
+}
+.cm-activeLineGutter, .cm-activeLine {
+  background: var(--accent-soft) !important;
+}
+.cm-cursor { border-left-color: var(--accent) !important; }
+.cm-selectionBackground, .cm-content ::selection {
+  background: var(--accent-soft) !important;
+}
+
+/* ── ReactFlow theming for mind / flow views ────────────────────────────── */
+.react-flow__node {
+  font-family: inherit;
+}
+.react-flow__background { background: var(--bg-soft) !important; }
+.react-flow__handle { background: var(--accent) !important; border-color: var(--bg) !important; }
+.react-flow__edge-path { stroke: var(--text-muted); stroke-width: 1.5; }
+.react-flow__attribution { display: none !important; }
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fm-fade-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fm-slide-up  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fm-fade-in  { animation: fm-fade-in 140ms ease both; }
+.fm-slide-up { animation: fm-slide-up 180ms ease both; }
